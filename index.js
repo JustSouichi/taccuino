@@ -6,33 +6,43 @@ import * as notes from './src/notes.js';
 
 /**
  * THEME DEFINITION
- * You can tweak these colors to restyle your app.
+ * Adjust colors here to restyle your entire UI.
  */
 const theme = {
+  // Background/foreground for the main areas
   background: 'black',
   foreground: 'white',
+
+  // Banner text color (ASCII art)
+  bannerFg: 'brightmagenta',
+
+  // Border color
   borderFg: 'magenta',
 
+  // Primary button (Okay, Submit, Save)
   primaryBg: 'blue',
   primaryFg: 'white',
 
+  // Secondary button (Cancel)
   secondaryBg: 'red',
   secondaryFg: 'white',
 
-  highlightBg: 'green',
-  highlightFg: 'white',
+  // Highlight color (focused button, etc.)
+  highlightBg: 'brightgreen',
+  highlightFg: 'black',
 
+  // Instruction bar text & background
   instructionFg: 'black',
-  instructionBg: 'yellow',
+  instructionBg: 'brightyellow',
 
-  errorBg: 'red',
+  // Error box colors
+  errorBg: 'brightred',
   errorFg: 'white'
 };
 
 /**
- * We'll assume the ASCII banner is ~9 lines high using the "Shadow" font.
+ * We'll assume the ASCII banner is ~9 lines high (Shadow font).
  * The bottom bar is 3 lines high.
- * We'll set the main area to start below the banner and end above the bottom bar.
  */
 const BANNER_HEIGHT = 9;
 const BOTTOM_BAR_HEIGHT = 3;
@@ -56,7 +66,7 @@ program.parse(process.argv);
 /**
  * OPEN UI
  * Creates the screen, sets up the banner, bottom bar, and main area,
- * then displays the note list. Resizes dynamically when the terminal is resized.
+ * then displays the note list. Adapts on terminal resize.
  */
 function openUI() {
   const screen = blessed.screen({
@@ -64,7 +74,7 @@ function openUI() {
     title: 'Taccuino'
   });
 
-  // The root container
+  // Root container
   const layout = blessed.box({
     parent: screen,
     top: 0,
@@ -77,19 +87,20 @@ function openUI() {
     }
   });
 
-  // 1) TOP BANNER (ASCII Art)
+  // 1) TOP BANNER with ASCII art (colored)
   const asciiText = figlet.textSync('Taccuino', { font: 'Shadow' });
   const banner = blessed.box({
     parent: layout,
     top: 0,
     left: 'center',
     width: '100%',
-    height: BANNER_HEIGHT, // We'll reserve ~9 lines for the Shadow font
+    height: BANNER_HEIGHT,
     content: asciiText,
     align: 'center',
     style: {
-      fg: theme.foreground,
-      bg: theme.background
+      fg: theme.bannerFg,
+      bg: theme.background,
+      bold: true
     }
   });
 
@@ -115,7 +126,6 @@ function openUI() {
     top: BANNER_HEIGHT,
     left: 0,
     width: '100%',
-    // The main area extends from the bottom of the banner to above the bottom bar
     height: `100%-${BANNER_HEIGHT + BOTTOM_BAR_HEIGHT}`,
     style: {
       fg: theme.foreground,
@@ -129,7 +139,7 @@ function openUI() {
   // Allow exit with Ctrl-C
   screen.key(['C-c'], () => process.exit(0));
 
-  // Responsive: recalculate mainArea size on terminal resize
+  // Responsive resizing
   screen.on('resize', () => {
     banner.width = '100%';
     mainArea.width = '100%';
@@ -143,7 +153,6 @@ function openUI() {
 
 /**
  * SHOW NOTE LIST
- * Displays all notes in the main area.
  */
 function showNoteList(screen, mainArea) {
   mainArea.children.forEach(child => child.detach());
@@ -162,14 +171,14 @@ function showNoteList(screen, mainArea) {
       fg: theme.foreground,
       bg: theme.background,
       selected: {
-        bg: theme.primaryBg,
-        fg: theme.primaryFg
+        // Highlight the selected item
+        bg: 'brightmagenta',
+        fg: 'white'
       }
     },
     items: []
   });
 
-  // Load notes (with try/catch in case of errors)
   let allNotes = [];
   try {
     allNotes = notes.getAllNotes();
@@ -190,12 +199,8 @@ function showNoteList(screen, mainArea) {
 
   // Key bindings
   screen.key(['q'], () => process.exit(0));
-  screen.key(['n'], () => {
-    showCreateNoteForm(screen, mainArea);
-  });
-  screen.key(['s'], () => {
-    showSearchPrompt(screen, mainArea);
-  });
+  screen.key(['n'], () => showCreateNoteForm(screen, mainArea));
+  screen.key(['s'], () => showSearchPrompt(screen, mainArea));
   screen.key(['d'], () => {
     const selectedIndex = noteList.selected;
     if (noteList.notes && noteList.notes[selectedIndex]) {
@@ -214,7 +219,6 @@ function showNoteList(screen, mainArea) {
 
 /**
  * SHOW NOTE VIEW
- * Read-only. Press e to edit, Esc/q to go back to the list.
  */
 function showNoteView(screen, mainArea, note) {
   mainArea.children.forEach(child => child.detach());
@@ -263,7 +267,6 @@ function showCreateNoteForm(screen, mainArea) {
     label: ' New Note '
   });
 
-  // Title label
   blessed.text({
     parent: form,
     top: 1,
@@ -272,7 +275,6 @@ function showCreateNoteForm(screen, mainArea) {
     style: { fg: theme.foreground, bg: theme.background }
   });
 
-  // Title input
   const titleInput = blessed.textbox({
     parent: form,
     name: 'title',
@@ -287,7 +289,6 @@ function showCreateNoteForm(screen, mainArea) {
     style: { fg: theme.foreground, bg: theme.background }
   });
 
-  // Content label
   blessed.text({
     parent: form,
     top: 6,
@@ -296,7 +297,6 @@ function showCreateNoteForm(screen, mainArea) {
     style: { fg: theme.foreground, bg: theme.background }
   });
 
-  // Content input
   const contentInput = blessed.textarea({
     parent: form,
     name: 'content',
@@ -313,7 +313,6 @@ function showCreateNoteForm(screen, mainArea) {
     alwaysScroll: true
   });
 
-  // Submit button
   const submitButton = blessed.button({
     parent: form,
     mouse: true,
@@ -327,12 +326,11 @@ function showCreateNoteForm(screen, mainArea) {
     style: {
       fg: theme.primaryFg,
       bg: theme.primaryBg,
-      focus: { bg: theme.highlightBg },
-      hover: { bg: theme.highlightBg }
+      focus: { bg: theme.highlightBg, fg: theme.highlightFg },
+      hover: { bg: theme.highlightBg, fg: theme.highlightFg }
     }
   });
 
-  // Cancel button
   const cancelButton = blessed.button({
     parent: form,
     mouse: true,
@@ -346,18 +344,13 @@ function showCreateNoteForm(screen, mainArea) {
     style: {
       fg: theme.secondaryFg,
       bg: theme.secondaryBg,
-      focus: { bg: theme.highlightBg },
-      hover: { bg: theme.highlightBg }
+      focus: { bg: theme.highlightBg, fg: theme.highlightFg },
+      hover: { bg: theme.highlightBg, fg: theme.highlightFg }
     }
   });
 
-  // Arrow-key focus switching
-  submitButton.key(['left', 'right'], () => {
-    cancelButton.focus();
-  });
-  cancelButton.key(['left', 'right'], () => {
-    submitButton.focus();
-  });
+  submitButton.key(['left', 'right'], () => cancelButton.focus());
+  cancelButton.key(['left', 'right'], () => submitButton.focus());
 
   submitButton.on('press', () => form.submit());
   cancelButton.on('press', () => {
@@ -385,7 +378,6 @@ function showCreateNoteForm(screen, mainArea) {
     }
   });
 
-  // Esc or q to cancel
   screen.key(['escape', 'q'], () => {
     showNoteList(screen, mainArea);
   });
@@ -413,7 +405,6 @@ function showEditNoteForm(screen, mainArea, note) {
     label: ' Edit Note '
   });
 
-  // Title label
   blessed.text({
     parent: form,
     top: 1,
@@ -422,7 +413,6 @@ function showEditNoteForm(screen, mainArea, note) {
     style: { fg: theme.foreground, bg: theme.background }
   });
 
-  // Title input
   const titleInput = blessed.textbox({
     parent: form,
     name: 'title',
@@ -438,7 +428,6 @@ function showEditNoteForm(screen, mainArea, note) {
   });
   titleInput.setValue(note.title);
 
-  // Content label
   blessed.text({
     parent: form,
     top: 6,
@@ -447,7 +436,6 @@ function showEditNoteForm(screen, mainArea, note) {
     style: { fg: theme.foreground, bg: theme.background }
   });
 
-  // Content input
   const contentInput = blessed.textarea({
     parent: form,
     name: 'content',
@@ -465,7 +453,6 @@ function showEditNoteForm(screen, mainArea, note) {
   });
   contentInput.setValue(note.content);
 
-  // Save button
   const saveButton = blessed.button({
     parent: form,
     mouse: true,
@@ -479,12 +466,11 @@ function showEditNoteForm(screen, mainArea, note) {
     style: {
       fg: theme.primaryFg,
       bg: theme.primaryBg,
-      focus: { bg: theme.highlightBg },
-      hover: { bg: theme.highlightBg }
+      focus: { bg: theme.highlightBg, fg: theme.highlightFg },
+      hover: { bg: theme.highlightBg, fg: theme.highlightFg }
     }
   });
 
-  // Cancel button
   const cancelButton = blessed.button({
     parent: form,
     mouse: true,
@@ -498,18 +484,13 @@ function showEditNoteForm(screen, mainArea, note) {
     style: {
       fg: theme.secondaryFg,
       bg: theme.secondaryBg,
-      focus: { bg: theme.highlightBg },
-      hover: { bg: theme.highlightBg }
+      focus: { bg: theme.highlightBg, fg: theme.highlightFg },
+      hover: { bg: theme.highlightBg, fg: theme.highlightFg }
     }
   });
 
-  // Arrow-key focus switching
-  saveButton.key(['left', 'right'], () => {
-    cancelButton.focus();
-  });
-  cancelButton.key(['left', 'right'], () => {
-    saveButton.focus();
-  });
+  saveButton.key(['left', 'right'], () => cancelButton.focus());
+  cancelButton.key(['left', 'right'], () => saveButton.focus());
 
   saveButton.on('press', () => form.submit());
   cancelButton.on('press', () => {
@@ -537,7 +518,6 @@ function showEditNoteForm(screen, mainArea, note) {
     }
   });
 
-  // Esc or q to go back
   screen.key(['escape', 'q'], () => {
     showNoteList(screen, mainArea);
   });
@@ -548,7 +528,6 @@ function showEditNoteForm(screen, mainArea, note) {
 
 /**
  * CONFIRM DELETE NOTE UI
- * Must type "YES" and press "Okay" to delete.
  */
 function confirmDeleteNoteUI(screen, mainArea, noteId) {
   mainArea.children.forEach(child => child.detach());
@@ -603,8 +582,8 @@ function confirmDeleteNoteUI(screen, mainArea, noteId) {
     style: {
       fg: theme.primaryFg,
       bg: theme.primaryBg,
-      focus: { bg: theme.highlightBg },
-      hover: { bg: theme.highlightBg }
+      focus: { bg: theme.highlightBg, fg: theme.highlightFg },
+      hover: { bg: theme.highlightBg, fg: theme.highlightFg }
     }
   });
 
@@ -622,18 +601,13 @@ function confirmDeleteNoteUI(screen, mainArea, noteId) {
     style: {
       fg: theme.secondaryFg,
       bg: theme.secondaryBg,
-      focus: { bg: theme.highlightBg },
-      hover: { bg: theme.highlightBg }
+      focus: { bg: theme.highlightBg, fg: theme.highlightFg },
+      hover: { bg: theme.highlightBg, fg: theme.highlightFg }
     }
   });
 
-  // Arrow-key focus switching
-  okayButton.key(['left', 'right'], () => {
-    cancelButton.focus();
-  });
-  cancelButton.key(['left', 'right'], () => {
-    okayButton.focus();
-  });
+  okayButton.key(['left', 'right'], () => cancelButton.focus());
+  cancelButton.key(['left', 'right'], () => okayButton.focus());
 
   okayButton.on('press', () => form.submit());
   cancelButton.on('press', () => {
@@ -657,7 +631,6 @@ function confirmDeleteNoteUI(screen, mainArea, noteId) {
     }
   });
 
-  // Esc/q to return
   screen.key(['escape', 'q'], () => {
     showNoteList(screen, mainArea);
   });
@@ -687,7 +660,7 @@ function showMessage(screen, text, callback) {
 
 /**
  * SHOW ERROR
- * Similar to showMessage, but with an error color background.
+ * Displays a red error box with the error message.
  */
 function showError(screen, errorText, callback) {
   const msg = blessed.message({
@@ -774,8 +747,8 @@ function showSearchResults(screen, mainArea, results) {
       fg: theme.foreground,
       bg: theme.background,
       selected: {
-        bg: theme.primaryBg,
-        fg: theme.primaryFg
+        bg: 'brightmagenta',
+        fg: 'white'
       }
     },
     items: []
@@ -811,3 +784,4 @@ function showSearchResults(screen, mainArea, results) {
     showNoteList(screen, mainArea);
   });
 }
+
