@@ -6,12 +6,12 @@ import * as notes from './src/notes.js';
 
 /**
  * THEME DEFINITION
- * Change these colors to quickly re-style your app.
+ * You can tweak these colors to restyle your app.
  */
 const theme = {
   background: 'black',
   foreground: 'white',
-  borderFg: 'white',
+  borderFg: 'magenta',
 
   primaryBg: 'blue',
   primaryFg: 'white',
@@ -22,8 +22,20 @@ const theme = {
   highlightBg: 'green',
   highlightFg: 'white',
 
-  instructionFg: 'gray'
+  instructionFg: 'black',
+  instructionBg: 'yellow',
+
+  errorBg: 'red',
+  errorFg: 'white'
 };
+
+/**
+ * We'll assume the ASCII banner is ~9 lines high using the "Shadow" font.
+ * The bottom bar is 3 lines high.
+ * We'll set the main area to start below the banner and end above the bottom bar.
+ */
+const BANNER_HEIGHT = 9;
+const BOTTOM_BAR_HEIGHT = 3;
 
 /**
  * CLI CONFIGURATION (Commander)
@@ -32,9 +44,6 @@ program
   .version('1.0.0')
   .description('Taccuino - CLI Note Manager');
 
-/**
- * "open" command: starts the UI
- */
 program
   .command('open')
   .description('Open the Taccuino full-screen interface')
@@ -46,16 +55,16 @@ program.parse(process.argv);
 
 /**
  * OPEN UI
- * Sets up the main screen, banner, bottom bar, and calls showNoteList() in the main area.
+ * Creates the screen, sets up the banner, bottom bar, and main area,
+ * then displays the note list. Resizes dynamically when the terminal is resized.
  */
 function openUI() {
-  // Create the Blessed screen
   const screen = blessed.screen({
     smartCSR: true,
     title: 'Taccuino'
   });
 
-  // The root container for everything
+  // The root container
   const layout = blessed.box({
     parent: screen,
     top: 0,
@@ -68,15 +77,15 @@ function openUI() {
     }
   });
 
-  // 1) TOP BANNER with ASCII text
-  const bannerText = figlet.textSync('Taccuino', { font: 'Standard' });
+  // 1) TOP BANNER (ASCII Art)
+  const asciiText = figlet.textSync('Taccuino', { font: 'Shadow' });
   const banner = blessed.box({
     parent: layout,
     top: 0,
     left: 'center',
     width: '100%',
-    height: 'shrink',
-    content: bannerText,
+    height: BANNER_HEIGHT, // We'll reserve ~9 lines for the Shadow font
+    content: asciiText,
     align: 'center',
     style: {
       fg: theme.foreground,
@@ -84,52 +93,59 @@ function openUI() {
     }
   });
 
-  // 2) MAIN AREA (where we show the list, forms, etc.)
-  // We'll place it below the banner (about 8 rows)
-  const mainArea = blessed.box({
-    parent: layout,
-    top: 8,
-    left: 0,
-    width: '100%',
-    height: '75%',
-    style: {
-      fg: theme.foreground,
-      bg: theme.background
-    }
-  });
-
-  // 3) BOTTOM BAR (for instructions)
+  // 2) BOTTOM BAR
   const instructionBar = blessed.box({
     parent: layout,
     bottom: 0,
     left: 0,
     width: '100%',
-    height: 3,
+    height: BOTTOM_BAR_HEIGHT,
     border: { type: 'line', fg: theme.borderFg },
     style: {
       fg: theme.instructionFg,
-      bg: theme.background
+      bg: theme.instructionBg
     },
     align: 'center',
     content: 'Enter: Open | n: New | s: Search | d: Delete | q: Quit'
   });
 
-  // Show the note list in the mainArea
+  // 3) MAIN AREA
+  const mainArea = blessed.box({
+    parent: layout,
+    top: BANNER_HEIGHT,
+    left: 0,
+    width: '100%',
+    // The main area extends from the bottom of the banner to above the bottom bar
+    height: `100%-${BANNER_HEIGHT + BOTTOM_BAR_HEIGHT}`,
+    style: {
+      fg: theme.foreground,
+      bg: theme.background
+    }
+  });
+
+  // Show the note list in the main area
   showNoteList(screen, mainArea);
 
   // Allow exit with Ctrl-C
   screen.key(['C-c'], () => process.exit(0));
 
-  // Render once at the end
+  // Responsive: recalculate mainArea size on terminal resize
+  screen.on('resize', () => {
+    banner.width = '100%';
+    mainArea.width = '100%';
+    mainArea.height = `100%-${BANNER_HEIGHT + BOTTOM_BAR_HEIGHT}`;
+    instructionBar.width = '100%';
+    screen.render();
+  });
+
   screen.render();
 }
 
 /**
  * SHOW NOTE LIST
- * Lists all notes in the main area. Pressing n, s, d, etc. triggers further actions.
+ * Displays all notes in the main area.
  */
 function showNoteList(screen, mainArea) {
-  // Clear the mainArea only (not the entire screen)
   mainArea.children.forEach(child => child.detach());
 
   const noteList = blessed.list({
@@ -153,8 +169,16 @@ function showNoteList(screen, mainArea) {
     items: []
   });
 
-  // Populate the list with notes
-  const allNotes = notes.getAllNotes();
+  // Load notes (with try/catch in case of errors)
+  let allNotes = [];
+  try {
+    allNotes = notes.getAllNotes();
+  } catch (error) {
+    return showError(screen, `Error reading notes: ${error.message}`, () => {
+      allNotes = [];
+    });
+  }
+
   noteList.notes = allNotes;
   const items = allNotes.map((note, index) => {
     return `${index + 1}. ${note.title} (${note.created_at.slice(0, 10)}) [🗑]`;
@@ -189,7 +213,8 @@ function showNoteList(screen, mainArea) {
 }
 
 /**
- * SHOW NOTE VIEW (Read-only). Press e to edit, Esc/q to go back to the list.
+ * SHOW NOTE VIEW
+ * Read-only. Press e to edit, Esc/q to go back to the list.
  */
 function showNoteView(screen, mainArea, note) {
   mainArea.children.forEach(child => child.detach());
@@ -347,10 +372,16 @@ function showCreateNoteForm(screen, mainArea) {
         titleInput.focus();
       });
     } else {
-      notes.createNote(title, content);
-      showMessage(screen, 'Note created successfully!', () => {
-        showNoteList(screen, mainArea);
-      });
+      try {
+        notes.createNote(title, content);
+        showMessage(screen, 'Note created successfully!', () => {
+          showNoteList(screen, mainArea);
+        });
+      } catch (error) {
+        showError(screen, `Error creating note: ${error.message}`, () => {
+          showNoteList(screen, mainArea);
+        });
+      }
     }
   });
 
@@ -493,10 +524,16 @@ function showEditNoteForm(screen, mainArea, note) {
         titleInput.focus();
       });
     } else {
-      notes.updateNote(note.id, { title: updatedTitle, content: updatedContent });
-      showMessage(screen, 'Note updated successfully!', () => {
-        showNoteList(screen, mainArea);
-      });
+      try {
+        notes.updateNote(note.id, { title: updatedTitle, content: updatedContent });
+        showMessage(screen, 'Note updated successfully!', () => {
+          showNoteList(screen, mainArea);
+        });
+      } catch (error) {
+        showError(screen, `Error updating note: ${error.message}`, () => {
+          showNoteList(screen, mainArea);
+        });
+      }
     }
   });
 
@@ -511,6 +548,7 @@ function showEditNoteForm(screen, mainArea, note) {
 
 /**
  * CONFIRM DELETE NOTE UI
+ * Must type "YES" and press "Okay" to delete.
  */
 function confirmDeleteNoteUI(screen, mainArea, noteId) {
   mainArea.children.forEach(child => child.detach());
@@ -604,10 +642,16 @@ function confirmDeleteNoteUI(screen, mainArea, noteId) {
 
   form.on('submit', data => {
     if ((data.confirm || '').trim() === 'YES') {
-      notes.deleteNote(noteId);
-      showMessage(screen, 'Note deleted.', () => {
-        showNoteList(screen, mainArea);
-      });
+      try {
+        notes.deleteNote(noteId);
+        showMessage(screen, 'Note deleted.', () => {
+          showNoteList(screen, mainArea);
+        });
+      } catch (error) {
+        showError(screen, `Error deleting note: ${error.message}`, () => {
+          showNoteList(screen, mainArea);
+        });
+      }
     } else {
       showNoteList(screen, mainArea);
     }
@@ -642,6 +686,26 @@ function showMessage(screen, text, callback) {
 }
 
 /**
+ * SHOW ERROR
+ * Similar to showMessage, but with an error color background.
+ */
+function showError(screen, errorText, callback) {
+  const msg = blessed.message({
+    parent: screen,
+    border: { type: 'line', fg: theme.borderFg },
+    width: '60%',
+    height: 'shrink',
+    top: 'center',
+    left: 'center',
+    style: { fg: theme.errorFg, bg: theme.errorBg },
+    label: ' Error ',
+    keys: true,
+    mouse: true
+  });
+  msg.display(errorText, 3, callback);
+}
+
+/**
  * SEARCH PROMPT
  */
 function showSearchPrompt(screen, mainArea) {
@@ -666,7 +730,14 @@ function showSearchPrompt(screen, mainArea) {
       showNoteList(screen, mainArea);
       return;
     }
-    const results = notes.searchNotes(query);
+    let results = [];
+    try {
+      results = notes.searchNotes(query);
+    } catch (error) {
+      return showError(screen, `Error searching notes: ${error.message}`, () => {
+        showNoteList(screen, mainArea);
+      });
+    }
     if (!results || results.length === 0) {
       showMessage(screen, 'No matching notes found.', () => {
         showNoteList(screen, mainArea);
