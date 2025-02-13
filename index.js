@@ -6,49 +6,32 @@ import * as notes from './src/notes.js';
 
 /**
  * THEME DEFINITION
- * Adjust colors here to restyle your entire UI.
  */
 const theme = {
-  // Background/foreground for the main areas
   background: 'black',
   foreground: 'white',
-
-  // Banner text color (ASCII art)
   bannerFg: 'brightmagenta',
-
-  // Border color
   borderFg: 'magenta',
-
-  // Primary button (Okay, Submit, Save)
   primaryBg: 'blue',
   primaryFg: 'white',
-
-  // Secondary button (Cancel)
   secondaryBg: 'red',
   secondaryFg: 'white',
-
-  // Highlight color (focused button, etc.)
   highlightBg: 'brightgreen',
   highlightFg: 'black',
-
-  // Instruction bar text & background
   instructionFg: 'black',
   instructionBg: 'brightyellow',
-
-  // Error box colors
   errorBg: 'brightred',
   errorFg: 'white'
 };
 
 /**
- * We'll assume the ASCII banner is ~9 lines high (Shadow font).
- * The bottom bar is 3 lines high.
+ * Layout constants
  */
-const BANNER_HEIGHT = 9;
-const BOTTOM_BAR_HEIGHT = 3;
+const BANNER_HEIGHT = 9;      // for "Shadow" font in figlet
+const BOTTOM_BAR_HEIGHT = 3;  // instruction bar at bottom
 
 /**
- * CLI CONFIGURATION (Commander)
+ * CLI CONFIG (Commander)
  */
 program
   .version('1.0.0')
@@ -65,8 +48,7 @@ program.parse(process.argv);
 
 /**
  * OPEN UI
- * Creates the screen, sets up the banner, bottom bar, and main area,
- * then displays the note list. Adapts on terminal resize.
+ * Creates the main screen, banner, bottom bar, main area, then shows the note list.
  */
 function openUI() {
   const screen = blessed.screen({
@@ -81,13 +63,10 @@ function openUI() {
     left: 0,
     width: '100%',
     height: '100%',
-    style: {
-      fg: theme.foreground,
-      bg: theme.background
-    }
+    style: { fg: theme.foreground, bg: theme.background }
   });
 
-  // 1) TOP BANNER with ASCII art (colored)
+  // 1) TOP BANNER (ASCII)
   const asciiText = figlet.textSync('Taccuino', { font: 'Shadow' });
   const banner = blessed.box({
     parent: layout,
@@ -127,13 +106,10 @@ function openUI() {
     left: 0,
     width: '100%',
     height: `100%-${BANNER_HEIGHT + BOTTOM_BAR_HEIGHT}`,
-    style: {
-      fg: theme.foreground,
-      bg: theme.background
-    }
+    style: { fg: theme.foreground, bg: theme.background }
   });
 
-  // Show the note list in the main area
+  // Show the note list
   showNoteList(screen, mainArea);
 
   // Allow exit with Ctrl-C
@@ -171,7 +147,6 @@ function showNoteList(screen, mainArea) {
       fg: theme.foreground,
       bg: theme.background,
       selected: {
-        // Highlight the selected item
         bg: 'brightmagenta',
         fg: 'white'
       }
@@ -568,7 +543,6 @@ function confirmDeleteNoteUI(screen, mainArea, noteId) {
   });
   input.focus();
 
-  // Okay button
   const okayButton = blessed.button({
     parent: form,
     mouse: true,
@@ -587,7 +561,6 @@ function confirmDeleteNoteUI(screen, mainArea, noteId) {
     }
   });
 
-  // Cancel button
   const cancelButton = blessed.button({
     parent: form,
     mouse: true,
@@ -639,70 +612,109 @@ function confirmDeleteNoteUI(screen, mainArea, noteId) {
 }
 
 /**
- * SHOW MESSAGE
- * Displays a short message, then calls a callback.
- */
-function showMessage(screen, text, callback) {
-  const msg = blessed.message({
-    parent: screen,
-    border: { type: 'line', fg: theme.borderFg },
-    width: '50%',
-    height: 'shrink',
-    top: 'center',
-    left: 'center',
-    style: { fg: theme.foreground, bg: theme.background },
-    label: ' Info ',
-    keys: true,
-    mouse: true
-  });
-  msg.display(text, 2, callback);
-}
-
-/**
- * SHOW ERROR
- * Displays a red error box with the error message.
- */
-function showError(screen, errorText, callback) {
-  const msg = blessed.message({
-    parent: screen,
-    border: { type: 'line', fg: theme.borderFg },
-    width: '60%',
-    height: 'shrink',
-    top: 'center',
-    left: 'center',
-    style: { fg: theme.errorFg, bg: theme.errorBg },
-    label: ' Error ',
-    keys: true,
-    mouse: true
-  });
-  msg.display(errorText, 3, callback);
-}
-
-/**
- * SEARCH PROMPT
+ * SHOW SEARCH PROMPT (FORM-BASED with "Okay" & "Cancel")
  */
 function showSearchPrompt(screen, mainArea) {
   mainArea.children.forEach(child => child.detach());
 
-  const prompt = blessed.prompt({
+  // Create a form for searching
+  const form = blessed.form({
     parent: mainArea,
-    border: { type: 'line', fg: theme.borderFg },
-    width: '50%',
-    height: 'shrink',
     top: 'center',
     left: 'center',
-    label: ' Search Notes ',
+    width: '60%',
+    height: 'shrink',
     keys: true,
-    vi: true,
     mouse: true,
+    border: { type: 'line', fg: theme.borderFg },
+    style: { fg: theme.foreground, bg: theme.background },
+    label: ' Search Notes '
+  });
+
+  // Label
+  blessed.text({
+    parent: form,
+    top: 1,
+    left: 1,
+    content: 'Enter search query:',
     style: { fg: theme.foreground, bg: theme.background }
   });
 
-  prompt.input('Enter search query:', '', (err, query) => {
+  // Textbox for the query
+  const input = blessed.textbox({
+    parent: form,
+    name: 'query',
+    top: 3,
+    left: 1,
+    width: '90%',
+    height: 3,
+    keys: true,
+    mouse: true,
+    inputOnFocus: true,
+    border: { type: 'line', fg: theme.borderFg },
+    style: { fg: theme.foreground, bg: theme.background }
+  });
+  input.focus();
+
+  // "Okay" button
+  const okayButton = blessed.button({
+    parent: form,
+    mouse: true,
+    keys: true,
+    shrink: true,
+    padding: { left: 1, right: 1 },
+    top: 7,
+    left: '25%',
+    name: 'okay',
+    content: 'Okay',
+    style: {
+      fg: theme.primaryFg,
+      bg: theme.primaryBg,
+      focus: { bg: theme.highlightBg, fg: theme.highlightFg },
+      hover: { bg: theme.highlightBg, fg: theme.highlightFg }
+    }
+  });
+
+  // "Cancel" button
+  const cancelButton = blessed.button({
+    parent: form,
+    mouse: true,
+    keys: true,
+    shrink: true,
+    padding: { left: 1, right: 1 },
+    top: 7,
+    left: '50%',
+    name: 'cancel',
+    content: 'Cancel',
+    style: {
+      fg: theme.secondaryFg,
+      bg: theme.secondaryBg,
+      focus: { bg: theme.highlightBg, fg: theme.highlightFg },
+      hover: { bg: theme.highlightBg, fg: theme.highlightFg }
+    }
+  });
+
+  // Arrow-key switching between "Okay" and "Cancel"
+  okayButton.key(['left', 'right'], () => {
+    cancelButton.focus();
+  });
+  cancelButton.key(['left', 'right'], () => {
+    okayButton.focus();
+  });
+
+  okayButton.on('press', () => form.submit());
+  cancelButton.on('press', () => {
+    showNoteList(screen, mainArea);
+  });
+
+  // On form submit
+  form.on('submit', data => {
+    const query = (data.query || '').trim();
     if (!query) {
       showNoteList(screen, mainArea);
       return;
     }
+
     let results = [];
     try {
       results = notes.searchNotes(query);
@@ -720,6 +732,7 @@ function showSearchPrompt(screen, mainArea) {
     }
   });
 
+  // Esc/q to cancel
   screen.key(['escape', 'q'], () => {
     showNoteList(screen, mainArea);
   });
@@ -785,3 +798,40 @@ function showSearchResults(screen, mainArea, results) {
   });
 }
 
+/**
+ * SHOW MESSAGE
+ */
+function showMessage(screen, text, callback) {
+  const msg = blessed.message({
+    parent: screen,
+    border: { type: 'line', fg: theme.borderFg },
+    width: '50%',
+    height: 'shrink',
+    top: 'center',
+    left: 'center',
+    style: { fg: theme.foreground, bg: theme.background },
+    label: ' Info ',
+    keys: true,
+    mouse: true
+  });
+  msg.display(text, 2, callback);
+}
+
+/**
+ * SHOW ERROR
+ */
+function showError(screen, errorText, callback) {
+  const msg = blessed.message({
+    parent: screen,
+    border: { type: 'line', fg: theme.borderFg },
+    width: '60%',
+    height: 'shrink',
+    top: 'center',
+    left: 'center',
+    style: { fg: theme.errorFg, bg: theme.errorBg },
+    label: ' Error ',
+    keys: true,
+    mouse: true
+  });
+  msg.display(errorText, 3, callback);
+}
