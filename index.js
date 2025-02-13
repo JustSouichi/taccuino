@@ -12,44 +12,33 @@ import path from 'path';
 
 function getNotesDir() {
   const platform = os.platform();
-  let baseDir;
-
   if (platform === 'win32') {
-    // On Windows, store in %APPDATA%\Taccuino\notes
-    baseDir = process.env.APPDATA || os.homedir();
+    const baseDir = process.env.APPDATA || os.homedir();
     return path.join(baseDir, 'Taccuino', 'notes');
   } else if (platform === 'darwin') {
-    // On macOS, store in ~/Library/Application Support/Taccuino/notes
     return path.join(os.homedir(), 'Library', 'Application Support', 'Taccuino', 'notes');
   } else {
-    // On Linux or other, store in ~/.taccuino/notes
     return path.join(os.homedir(), '.taccuino', 'notes');
   }
 }
 
-// Ensure the folder exists
 const NOTES_DIR = getNotesDir();
 if (!fs.existsSync(NOTES_DIR)) {
   fs.mkdirSync(NOTES_DIR, { recursive: true });
 }
 
 /******************************************************************************
- * 2) NOTE LOGIC (CREATE, READ, UPDATE, DELETE, SEARCH)
- *    STORED AS JSON FILES IN NOTES_DIR
+ * 2) NOTE LOGIC
  ******************************************************************************/
 
 function getNoteFilePath(noteId) {
   return path.join(NOTES_DIR, `${noteId}.json`);
 }
 
-// Generate a unique ID (timestamp + random).
 function generateId() {
   return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
 }
 
-/**
- * CREATE NOTE
- */
 function createNote(title, content) {
   const id = generateId();
   const note = {
@@ -62,27 +51,20 @@ function createNote(title, content) {
   fs.writeFileSync(getNoteFilePath(id), JSON.stringify(note, null, 2), 'utf8');
 }
 
-/**
- * GET ALL NOTES
- */
 function getAllNotes() {
   const files = fs.readdirSync(NOTES_DIR);
   const notes = [];
-  files.forEach(file => {
+  for (const file of files) {
     if (file.endsWith('.json')) {
       const data = fs.readFileSync(path.join(NOTES_DIR, file), 'utf8');
-      const note = JSON.parse(data);
-      notes.push(note);
+      notes.push(JSON.parse(data));
     }
-  });
+  }
   // Sort by created_at descending
   notes.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   return notes;
 }
 
-/**
- * UPDATE NOTE
- */
 function updateNote(noteId, { title, content }) {
   const filePath = getNoteFilePath(noteId);
   if (!fs.existsSync(filePath)) {
@@ -95,9 +77,6 @@ function updateNote(noteId, { title, content }) {
   fs.writeFileSync(filePath, JSON.stringify(note, null, 2), 'utf8');
 }
 
-/**
- * DELETE NOTE
- */
 function deleteNote(noteId) {
   const filePath = getNoteFilePath(noteId);
   if (fs.existsSync(filePath)) {
@@ -107,9 +86,6 @@ function deleteNote(noteId) {
   }
 }
 
-/**
- * SEARCH NOTES
- */
 function searchNotes(query) {
   const all = getAllNotes();
   const lower = query.toLowerCase();
@@ -120,23 +96,23 @@ function searchNotes(query) {
 }
 
 /******************************************************************************
- * 3) THEME & LAYOUT CONSTANTS (WITH IMPROVED COLORS)
+ * 3) THEME & LAYOUT
  ******************************************************************************/
 
 const theme = {
-  background: 'black',        // Main background
-  foreground: 'white',        // Main text
-  bannerFg: 'brightblue',     // Banner ASCII text color
-  borderFg: 'cyan',           // Borders
-  primaryBg: 'brightmagenta', // Buttons "Okay"/"Submit"/"Save" background
+  background: 'black',
+  foreground: 'white',
+  bannerFg: 'brightcyan',    // Banner ASCII color
+  borderFg: 'brightcyan',    // Borders
+  primaryBg: 'brightmagenta',// Buttons "Okay"/"Submit"/"Save"
   primaryFg: 'white',
-  secondaryBg: 'red',         // Buttons "Cancel" background
+  secondaryBg: 'red',        // Button "Cancel"
   secondaryFg: 'white',
-  highlightBg: 'brightcyan',  // Focus/hover background
+  highlightBg: 'brightcyan', // Focused button, hover
   highlightFg: 'black',
-  instructionFg: 'black',     // Instruction bar text
+  instructionFg: 'black',
   instructionBg: 'brightyellow',
-  errorBg: 'brightred',       // Error message background
+  errorBg: 'brightred',
   errorFg: 'white'
 };
 
@@ -161,19 +137,15 @@ program
 program.parse(process.argv);
 
 /******************************************************************************
- * 5) BLESSED UI CODE (FULL)
+ * 5) BLESSED UI CODE
  ******************************************************************************/
 
-/**
- * MAIN UI ENTRY
- */
 function openUI() {
   const screen = blessed.screen({
     smartCSR: true,
     title: 'Taccuino'
   });
 
-  // Root container
   const layout = blessed.box({
     parent: screen,
     top: 0,
@@ -183,8 +155,8 @@ function openUI() {
     style: { fg: theme.foreground, bg: theme.background }
   });
 
-  // Banner
-  const asciiText = figlet.textSync('Taccuino', { font: 'Shadow' });
+  // Banner con font "Slant" (più "denso" di Shadow)
+  const asciiText = figlet.textSync('Taccuino', { font: 'Slant' });
   const banner = blessed.box({
     parent: layout,
     top: 0,
@@ -200,7 +172,6 @@ function openUI() {
     }
   });
 
-  // Instruction bar
   const instructionBar = blessed.box({
     parent: layout,
     bottom: 0,
@@ -216,7 +187,6 @@ function openUI() {
     content: 'Enter: Open | n: New | s: Search | d: Delete | q: Quit'
   });
 
-  // Main area
   const mainArea = blessed.box({
     parent: layout,
     top: BANNER_HEIGHT,
@@ -241,18 +211,17 @@ function openUI() {
   screen.render();
 }
 
-/**
- * SHOW NOTE LIST
- */
 function showNoteList(screen, mainArea) {
   mainArea.children.forEach(child => child.detach());
 
+  // Abilitiamo "tags: true" per colorare parzialmente i titoli/data
   const noteList = blessed.list({
     parent: mainArea,
     top: 0,
     left: 0,
     width: '100%',
     height: '100%',
+    tags: true,
     keys: true,
     vi: true,
     mouse: true,
@@ -277,10 +246,13 @@ function showNoteList(screen, mainArea) {
     });
   }
 
-  noteList.notes = all;
+  // Applichiamo markup per titolo e data
   const items = all.map((note, index) => {
-    return `${index + 1}. ${note.title} (${note.created_at.slice(0, 10)})`;
+    const dateStr = note.created_at.slice(0, 10);
+    return `{bold}{green-fg}${index + 1}. ${note.title}{/green-fg}{/bold}  {yellow-fg}(${dateStr}){/yellow-fg}`;
   });
+
+  noteList.notes = all;
   noteList.setItems(items);
 
   noteList.focus();
@@ -305,9 +277,6 @@ function showNoteList(screen, mainArea) {
   });
 }
 
-/**
- * SHOW NOTE VIEW
- */
 function showNoteView(screen, mainArea, note) {
   mainArea.children.forEach(child => child.detach());
 
@@ -336,9 +305,6 @@ function showNoteView(screen, mainArea, note) {
   });
 }
 
-/**
- * CREATE NOTE FORM
- */
 function showCreateNoteForm(screen, mainArea) {
   mainArea.children.forEach(child => child.detach());
 
@@ -474,9 +440,6 @@ function showCreateNoteForm(screen, mainArea) {
   titleInput.focus();
 }
 
-/**
- * EDIT NOTE FORM
- */
 function showEditNoteForm(screen, mainArea, note) {
   mainArea.children.forEach(child => child.detach());
 
@@ -614,9 +577,6 @@ function showEditNoteForm(screen, mainArea, note) {
   titleInput.focus();
 }
 
-/**
- * CONFIRM DELETE NOTE UI
- */
 function confirmDeleteNoteUI(screen, mainArea, noteId) {
   mainArea.children.forEach(child => child.detach());
 
@@ -724,9 +684,6 @@ function confirmDeleteNoteUI(screen, mainArea, noteId) {
   screen.render();
 }
 
-/**
- * SEARCH PROMPT (FORM-BASED)
- */
 function showSearchPrompt(screen, mainArea) {
   mainArea.children.forEach(child => child.detach());
 
@@ -840,9 +797,6 @@ function showSearchPrompt(screen, mainArea) {
   screen.render();
 }
 
-/**
- * SHOW SEARCH RESULTS
- */
 function showSearchResults(screen, mainArea, results) {
   mainArea.children.forEach(child => child.detach());
 
@@ -852,6 +806,7 @@ function showSearchResults(screen, mainArea, results) {
     left: 0,
     width: '100%',
     height: '100%',
+    tags: true,
     keys: true,
     vi: true,
     mouse: true,
@@ -867,10 +822,13 @@ function showSearchResults(screen, mainArea, results) {
     items: []
   });
 
-  resultsList.notes = results;
+  // Applichiamo markup a ogni riga
   const items = results.map((note, index) => {
-    return `${index + 1}. ${note.title} (${note.created_at.slice(0, 10)})`;
+    const dateStr = note.created_at.slice(0, 10);
+    return `{bold}{green-fg}${index + 1}. ${note.title}{/green-fg}{/bold}  {yellow-fg}(${dateStr}){/yellow-fg}`;
   });
+
+  resultsList.notes = results;
   resultsList.setItems(items);
 
   resultsList.focus();
