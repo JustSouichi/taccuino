@@ -1,6 +1,10 @@
 # Taccuino
 
-
+<p align="center">
+  <img src="https://raw.githubusercontent.com/JustSouichi/taccuino/refs/heads/main/assets/taccuino_screenshot.png" width="200" height="179" alt="">
+  <br><strong>Command-line tool for monitoring financial data and market trends in real-time directly from your terminal.</strong>
+  <br><a href="https://github.com/JustSouichi/finview">GitHub Repository</a>
+</p>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://raw.githubusercontent.com/JustSouichi/taccuino/refs/heads/main/LICENSE)
 [![GitHub issues](https://img.shields.io/github/issues/JustSouichi/taccuino.svg)](https://github.com/JustSouichi/taccuino/issues)
