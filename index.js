@@ -42,7 +42,7 @@ function getNoteFilePath(noteId) {
   return path.join(NOTES_DIR, `${noteId}.json`);
 }
 
-// Generate a unique ID. For simplicity, we can do a timestamp + random approach.
+// Generate a unique ID (timestamp + random).
 function generateId() {
   return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
 }
@@ -120,23 +120,23 @@ function searchNotes(query) {
 }
 
 /******************************************************************************
- * 3) THEME & LAYOUT CONSTANTS
+ * 3) THEME & LAYOUT CONSTANTS (WITH IMPROVED COLORS)
  ******************************************************************************/
 
 const theme = {
-  background: 'black',
-  foreground: 'white',
-  bannerFg: 'brightmagenta',
-  borderFg: 'magenta',
-  primaryBg: 'blue',
+  background: 'black',        // Main background
+  foreground: 'white',        // Main text
+  bannerFg: 'brightblue',     // Banner ASCII text color
+  borderFg: 'cyan',           // Borders
+  primaryBg: 'brightmagenta', // Buttons "Okay"/"Submit"/"Save" background
   primaryFg: 'white',
-  secondaryBg: 'red',
+  secondaryBg: 'red',         // Buttons "Cancel" background
   secondaryFg: 'white',
-  highlightBg: 'brightgreen',
+  highlightBg: 'brightcyan',  // Focus/hover background
   highlightFg: 'black',
-  instructionFg: 'black',
+  instructionFg: 'black',     // Instruction bar text
   instructionBg: 'brightyellow',
-  errorBg: 'brightred',
+  errorBg: 'brightred',       // Error message background
   errorFg: 'white'
 };
 
@@ -158,27 +158,10 @@ program
     openUI();
   });
 
-// NUOVI COMANDI
-program
-  .command('export <file>')
-  .description('Export all notes to a JSON file')
-  .action((file) => {
-    exportNotes(file);
-  });
-
-program
-  .command('import <file>')
-  .description('Import notes from a JSON file')
-  .action((file) => {
-    importNotes(file);
-  });
-
 program.parse(process.argv);
 
-
-
 /******************************************************************************
- * 5) BLESSED UI CODE
+ * 5) BLESSED UI CODE (FULL)
  ******************************************************************************/
 
 /**
@@ -296,7 +279,7 @@ function showNoteList(screen, mainArea) {
 
   noteList.notes = all;
   const items = all.map((note, index) => {
-    return `${index + 1}. ${note.title} (${note.created_at.slice(0, 10)}) [🗑]`;
+    return `${index + 1}. ${note.title} (${note.created_at.slice(0, 10)})`;
   });
   noteList.setItems(items);
 
@@ -950,74 +933,3 @@ function showError(screen, errorText, callback) {
   });
   msg.display(errorText, 3, callback);
 }
-
-/**
- * EXPORT NOTES
- * Scrive tutte le note in un array JSON dentro <filePath>.
- */
-function exportNotes(filePath) {
-    try {
-      const all = getAllNotes(); // Funzione che già hai definito
-      const data = JSON.stringify(all, null, 2);
-      fs.writeFileSync(filePath, data, 'utf8');
-      console.log(`Export completed. Notes saved to: ${filePath}`);
-    } catch (error) {
-      console.error('Error exporting notes:', error.message);
-    }
-  }
-  
-  /**
-   * IMPORT NOTES
-   * Legge un array di note da <filePath> e le crea/aggiorna in Taccuino.
-   */
-  function importNotes(filePath) {
-    try {
-      const raw = fs.readFileSync(filePath, 'utf8');
-      const importedNotes = JSON.parse(raw);
-  
-      if (!Array.isArray(importedNotes)) {
-        throw new Error('Invalid file format: JSON array expected');
-      }
-  
-      // Per ogni nota importata, controlliamo se esiste già (stesso ID).
-      // Se esiste, aggiorniamo, altrimenti creiamo.
-      let countCreated = 0;
-      let countUpdated = 0;
-  
-      importedNotes.forEach(noteData => {
-        // Deve avere un id, un title e un content
-        if (!noteData.id || !noteData.title || !noteData.content) {
-          console.warn(`Skipping invalid note: ${JSON.stringify(noteData)}`);
-          return;
-        }
-  
-        const filePath = getNoteFilePath(noteData.id);
-        if (fs.existsSync(filePath)) {
-          // Aggiorna la nota esistente
-          const existingNote = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-          existingNote.title = noteData.title;
-          existingNote.content = noteData.content;
-          existingNote.created_at = noteData.created_at || existingNote.created_at;
-          existingNote.updated_at = new Date().toISOString();
-          fs.writeFileSync(filePath, JSON.stringify(existingNote, null, 2), 'utf8');
-          countUpdated++;
-        } else {
-          // Crea una nuova nota con l'ID fornito
-          const newNote = {
-            id: noteData.id,
-            title: noteData.title,
-            content: noteData.content,
-            created_at: noteData.created_at || new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          };
-          fs.writeFileSync(filePath, JSON.stringify(newNote, null, 2), 'utf8');
-          countCreated++;
-        }
-      });
-  
-      console.log(`Import completed. Created: ${countCreated}, Updated: ${countUpdated}`);
-    } catch (error) {
-      console.error('Error importing notes:', error.message);
-    }
-  }
-  
