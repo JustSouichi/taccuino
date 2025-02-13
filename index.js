@@ -2,11 +2,127 @@
 import { program } from 'commander';
 import blessed from 'blessed';
 import figlet from 'figlet';
-import * as notes from './src/notes.js';
+import os from 'os';
+import fs from 'fs';
+import path from 'path';
+
+/******************************************************************************
+ * 1) DETECT OS AND SET NOTES FOLDER OUTSIDE THE NPM PACKAGE
+ ******************************************************************************/
+
+function getNotesDir() {
+  const platform = os.platform();
+  let baseDir;
+
+  if (platform === 'win32') {
+    // On Windows, store in %APPDATA%\Taccuino\notes
+    baseDir = process.env.APPDATA || os.homedir();
+    return path.join(baseDir, 'Taccuino', 'notes');
+  } else if (platform === 'darwin') {
+    // On macOS, store in ~/Library/Application Support/Taccuino/notes
+    return path.join(os.homedir(), 'Library', 'Application Support', 'Taccuino', 'notes');
+  } else {
+    // On Linux or other, store in ~/.taccuino/notes
+    return path.join(os.homedir(), '.taccuino', 'notes');
+  }
+}
+
+// Ensure the folder exists
+const NOTES_DIR = getNotesDir();
+if (!fs.existsSync(NOTES_DIR)) {
+  fs.mkdirSync(NOTES_DIR, { recursive: true });
+}
+
+/******************************************************************************
+ * 2) NOTE LOGIC (CREATE, READ, UPDATE, DELETE, SEARCH)
+ *    STORED AS JSON FILES IN NOTES_DIR
+ ******************************************************************************/
+
+function getNoteFilePath(noteId) {
+  return path.join(NOTES_DIR, `${noteId}.json`);
+}
+
+// Generate a unique ID. For simplicity, we can do a timestamp + random approach.
+function generateId() {
+  return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+}
 
 /**
- * THEME DEFINITION
+ * CREATE NOTE
  */
+function createNote(title, content) {
+  const id = generateId();
+  const note = {
+    id,
+    title,
+    content,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+  fs.writeFileSync(getNoteFilePath(id), JSON.stringify(note, null, 2), 'utf8');
+}
+
+/**
+ * GET ALL NOTES
+ */
+function getAllNotes() {
+  const files = fs.readdirSync(NOTES_DIR);
+  const notes = [];
+  files.forEach(file => {
+    if (file.endsWith('.json')) {
+      const data = fs.readFileSync(path.join(NOTES_DIR, file), 'utf8');
+      const note = JSON.parse(data);
+      notes.push(note);
+    }
+  });
+  // Sort by created_at descending
+  notes.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  return notes;
+}
+
+/**
+ * UPDATE NOTE
+ */
+function updateNote(noteId, { title, content }) {
+  const filePath = getNoteFilePath(noteId);
+  if (!fs.existsSync(filePath)) {
+    throw new Error('Note does not exist');
+  }
+  const note = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  note.title = title;
+  note.content = content;
+  note.updated_at = new Date().toISOString();
+  fs.writeFileSync(filePath, JSON.stringify(note, null, 2), 'utf8');
+}
+
+/**
+ * DELETE NOTE
+ */
+function deleteNote(noteId) {
+  const filePath = getNoteFilePath(noteId);
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
+  } else {
+    throw new Error('Note not found');
+  }
+}
+
+/**
+ * SEARCH NOTES
+ */
+function searchNotes(query) {
+  const all = getAllNotes();
+  const lower = query.toLowerCase();
+  return all.filter(n =>
+    n.title.toLowerCase().includes(lower) ||
+    n.content.toLowerCase().includes(lower)
+  );
+}
+
+/******************************************************************************
+ * 3) THEME & LAYOUT CONSTANTS
+ ******************************************************************************/
+
 const theme = {
   background: 'black',
   foreground: 'white',
@@ -24,15 +140,13 @@ const theme = {
   errorFg: 'white'
 };
 
-/**
- * Layout constants
- */
-const BANNER_HEIGHT = 9;      // for "Shadow" font in figlet
-const BOTTOM_BAR_HEIGHT = 3;  // instruction bar at bottom
+const BANNER_HEIGHT = 9;
+const BOTTOM_BAR_HEIGHT = 3;
 
-/**
- * CLI CONFIG (Commander)
- */
+/******************************************************************************
+ * 4) COMMANDER CLI CONFIG
+ ******************************************************************************/
+
 program
   .version('1.0.0')
   .description('Taccuino - CLI Note Manager');
@@ -46,9 +160,12 @@ program
 
 program.parse(process.argv);
 
+/******************************************************************************
+ * 5) BLESSED UI CODE
+ ******************************************************************************/
+
 /**
- * OPEN UI
- * Creates the main screen, banner, bottom bar, main area, then shows the note list.
+ * MAIN UI ENTRY
  */
 function openUI() {
   const screen = blessed.screen({
@@ -66,7 +183,7 @@ function openUI() {
     style: { fg: theme.foreground, bg: theme.background }
   });
 
-  // 1) TOP BANNER (ASCII)
+  // Banner
   const asciiText = figlet.textSync('Taccuino', { font: 'Shadow' });
   const banner = blessed.box({
     parent: layout,
@@ -83,7 +200,7 @@ function openUI() {
     }
   });
 
-  // 2) BOTTOM BAR
+  // Instruction bar
   const instructionBar = blessed.box({
     parent: layout,
     bottom: 0,
@@ -99,7 +216,7 @@ function openUI() {
     content: 'Enter: Open | n: New | s: Search | d: Delete | q: Quit'
   });
 
-  // 3) MAIN AREA
+  // Main area
   const mainArea = blessed.box({
     parent: layout,
     top: BANNER_HEIGHT,
@@ -109,13 +226,10 @@ function openUI() {
     style: { fg: theme.foreground, bg: theme.background }
   });
 
-  // Show the note list
   showNoteList(screen, mainArea);
 
-  // Allow exit with Ctrl-C
   screen.key(['C-c'], () => process.exit(0));
 
-  // Responsive resizing
   screen.on('resize', () => {
     banner.width = '100%';
     mainArea.width = '100%';
@@ -154,17 +268,17 @@ function showNoteList(screen, mainArea) {
     items: []
   });
 
-  let allNotes = [];
+  let all = [];
   try {
-    allNotes = notes.getAllNotes();
+    all = getAllNotes();
   } catch (error) {
     return showError(screen, `Error reading notes: ${error.message}`, () => {
-      allNotes = [];
+      all = [];
     });
   }
 
-  noteList.notes = allNotes;
-  const items = allNotes.map((note, index) => {
+  noteList.notes = all;
+  const items = all.map((note, index) => {
     return `${index + 1}. ${note.title} (${note.created_at.slice(0, 10)}) [🗑]`;
   });
   noteList.setItems(items);
@@ -177,14 +291,13 @@ function showNoteList(screen, mainArea) {
   screen.key(['n'], () => showCreateNoteForm(screen, mainArea));
   screen.key(['s'], () => showSearchPrompt(screen, mainArea));
   screen.key(['d'], () => {
-    const selectedIndex = noteList.selected;
-    if (noteList.notes && noteList.notes[selectedIndex]) {
-      const note = noteList.notes[selectedIndex];
+    const selIndex = noteList.selected;
+    if (noteList.notes && noteList.notes[selIndex]) {
+      const note = noteList.notes[selIndex];
       confirmDeleteNoteUI(screen, mainArea, note.id);
     }
   });
 
-  // Press Enter on a note to open it
   noteList.on('select', (item, index) => {
     if (noteList.notes && noteList.notes[index]) {
       showNoteView(screen, mainArea, noteList.notes[index]);
@@ -224,7 +337,7 @@ function showNoteView(screen, mainArea, note) {
 }
 
 /**
- * SHOW CREATE NOTE FORM
+ * CREATE NOTE FORM
  */
 function showCreateNoteForm(screen, mainArea) {
   mainArea.children.forEach(child => child.detach());
@@ -341,7 +454,7 @@ function showCreateNoteForm(screen, mainArea) {
       });
     } else {
       try {
-        notes.createNote(title, content);
+        createNote(title, content);
         showMessage(screen, 'Note created successfully!', () => {
           showNoteList(screen, mainArea);
         });
@@ -362,7 +475,7 @@ function showCreateNoteForm(screen, mainArea) {
 }
 
 /**
- * SHOW EDIT NOTE FORM
+ * EDIT NOTE FORM
  */
 function showEditNoteForm(screen, mainArea, note) {
   mainArea.children.forEach(child => child.detach());
@@ -481,7 +594,7 @@ function showEditNoteForm(screen, mainArea, note) {
       });
     } else {
       try {
-        notes.updateNote(note.id, { title: updatedTitle, content: updatedContent });
+        updateNote(note.id, { title: updatedTitle, content: updatedContent });
         showMessage(screen, 'Note updated successfully!', () => {
           showNoteList(screen, mainArea);
         });
@@ -590,7 +703,7 @@ function confirmDeleteNoteUI(screen, mainArea, noteId) {
   form.on('submit', data => {
     if ((data.confirm || '').trim() === 'YES') {
       try {
-        notes.deleteNote(noteId);
+        deleteNote(noteId);
         showMessage(screen, 'Note deleted.', () => {
           showNoteList(screen, mainArea);
         });
@@ -612,12 +725,11 @@ function confirmDeleteNoteUI(screen, mainArea, noteId) {
 }
 
 /**
- * SHOW SEARCH PROMPT (FORM-BASED with "Okay" & "Cancel")
+ * SEARCH PROMPT (FORM-BASED)
  */
 function showSearchPrompt(screen, mainArea) {
   mainArea.children.forEach(child => child.detach());
 
-  // Create a form for searching
   const form = blessed.form({
     parent: mainArea,
     top: 'center',
@@ -631,7 +743,6 @@ function showSearchPrompt(screen, mainArea) {
     label: ' Search Notes '
   });
 
-  // Label
   blessed.text({
     parent: form,
     top: 1,
@@ -640,7 +751,6 @@ function showSearchPrompt(screen, mainArea) {
     style: { fg: theme.foreground, bg: theme.background }
   });
 
-  // Textbox for the query
   const input = blessed.textbox({
     parent: form,
     name: 'query',
@@ -656,7 +766,6 @@ function showSearchPrompt(screen, mainArea) {
   });
   input.focus();
 
-  // "Okay" button
   const okayButton = blessed.button({
     parent: form,
     mouse: true,
@@ -675,7 +784,6 @@ function showSearchPrompt(screen, mainArea) {
     }
   });
 
-  // "Cancel" button
   const cancelButton = blessed.button({
     parent: form,
     mouse: true,
@@ -694,30 +802,23 @@ function showSearchPrompt(screen, mainArea) {
     }
   });
 
-  // Arrow-key switching between "Okay" and "Cancel"
-  okayButton.key(['left', 'right'], () => {
-    cancelButton.focus();
-  });
-  cancelButton.key(['left', 'right'], () => {
-    okayButton.focus();
-  });
+  okayButton.key(['left', 'right'], () => cancelButton.focus());
+  cancelButton.key(['left', 'right'], () => okayButton.focus());
 
   okayButton.on('press', () => form.submit());
   cancelButton.on('press', () => {
     showNoteList(screen, mainArea);
   });
 
-  // On form submit
   form.on('submit', data => {
     const query = (data.query || '').trim();
     if (!query) {
       showNoteList(screen, mainArea);
       return;
     }
-
     let results = [];
     try {
-      results = notes.searchNotes(query);
+      results = searchNotes(query);
     } catch (error) {
       return showError(screen, `Error searching notes: ${error.message}`, () => {
         showNoteList(screen, mainArea);
@@ -732,7 +833,6 @@ function showSearchPrompt(screen, mainArea) {
     }
   });
 
-  // Esc/q to cancel
   screen.key(['escape', 'q'], () => {
     showNoteList(screen, mainArea);
   });
@@ -778,9 +878,9 @@ function showSearchResults(screen, mainArea, results) {
 
   // Press d to delete
   screen.key(['d'], () => {
-    const selectedIndex = resultsList.selected;
-    if (resultsList.notes && resultsList.notes[selectedIndex]) {
-      const note = resultsList.notes[selectedIndex];
+    const selIndex = resultsList.selected;
+    if (resultsList.notes && resultsList.notes[selIndex]) {
+      const note = resultsList.notes[selIndex];
       confirmDeleteNoteUI(screen, mainArea, note.id);
     }
   });
@@ -798,9 +898,10 @@ function showSearchResults(screen, mainArea, results) {
   });
 }
 
-/**
- * SHOW MESSAGE
- */
+/******************************************************************************
+ * 6) HELPER FUNCTIONS: showMessage, showError
+ ******************************************************************************/
+
 function showMessage(screen, text, callback) {
   const msg = blessed.message({
     parent: screen,
@@ -817,9 +918,6 @@ function showMessage(screen, text, callback) {
   msg.display(text, 2, callback);
 }
 
-/**
- * SHOW ERROR
- */
 function showError(screen, errorText, callback) {
   const msg = blessed.message({
     parent: screen,
