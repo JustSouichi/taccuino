@@ -1,0 +1,30 @@
+{
+  "name": "taccuino",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Taccuino - CLI Note Manager for fast terminal note management",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js open",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "bin": {
+    "taccuino": "./index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JustSouichi/taccuino.git"
+  },
+  "author": "Tommaso Bertocchi - JustSouichi",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/JustSouichi/taccuino/issues"
+  },
+  "homepage": "https://github.com/JustSouichi/taccuino#readme",
+  "dependencies": {
+    "blessed": "^0.1.81",
+    "commander": "^13.1.0",
+    "inquirer": "^12.4.1",
+    "uuid": "^11.0.5"
+  }
+}
