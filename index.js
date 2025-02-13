@@ -16,6 +16,7 @@ program
       title: 'Taccuino'
     });
     fullScreenListUI(screen);
+
     // Allow exit with Ctrl-C
     screen.key(['C-c'], () => process.exit(0));
   });
@@ -23,13 +24,11 @@ program
 program.parse(process.argv);
 
 /**
- * Displays the full-screen main interface with the list of notes.
+ * Shows the main full-screen UI with the list of notes.
  */
 function fullScreenListUI(screen) {
-  // Remove existing elements
   screen.children.forEach(child => child.detach());
 
-  // Create a list element to show the notes
   const noteList = blessed.list({
     parent: screen,
     top: 'center',
@@ -46,7 +45,6 @@ function fullScreenListUI(screen) {
     items: []
   });
 
-  // Create an instruction bar at the bottom
   blessed.box({
     parent: screen,
     bottom: 0,
@@ -58,7 +56,6 @@ function fullScreenListUI(screen) {
     align: 'center'
   });
 
-  // Load and display the list of notes
   refreshNoteList(noteList, screen);
 
   noteList.focus();
@@ -66,8 +63,8 @@ function fullScreenListUI(screen) {
 
   // Global keys
   screen.key(['q'], () => process.exit(0));
-  
-  // Create a new note (with multiline editor)
+
+  // Create a new note
   screen.key(['n'], () => {
     createNoteUI(screen);
   });
@@ -97,7 +94,7 @@ function fullScreenListUI(screen) {
     }
   });
 
-  // When Enter is pressed on a note, open it
+  // Press Enter on a note to open it
   noteList.on('select', (item, index) => {
     if (noteList.notes && noteList.notes[index]) {
       openNoteUI(screen, noteList.notes[index]);
@@ -106,26 +103,26 @@ function fullScreenListUI(screen) {
 }
 
 /**
- * Refreshes the note list in the noteList element.
+ * Reloads the note list into the noteList widget.
  */
 function refreshNoteList(noteList, screen) {
   const allNotes = notes.getAllNotes();
-  // Save note objects for later reference
   noteList.notes = allNotes;
+
   const items = allNotes.map((note, index) => {
-    // Format: "Number. Title (Date) [🗑]"
     return `${index + 1}. ${note.title} (${note.created_at.slice(0, 10)}) [🗑]`;
   });
+
   noteList.setItems(items);
   screen.render();
 }
 
 /**
- * Opens the selected note view (read-only), with the option to edit (press 'e').
+ * Opens a note in read-only mode. Press 'e' to edit.
  */
 function openNoteUI(screen, note) {
-  // Clear the screen
   screen.children.forEach(child => child.detach());
+
   const box = blessed.box({
     parent: screen,
     top: 'center',
@@ -141,22 +138,21 @@ function openNoteUI(screen, note) {
     alwaysScroll: true,
     scrollbar: { ch: ' ', inverse: true }
   });
+
   box.focus();
   screen.render();
 
-  // Return to list on Esc or q
   box.key(['escape', 'q'], () => {
     fullScreenListUI(screen);
   });
 
-  // Press e to edit
   box.key(['e'], () => {
     editNoteUI(screen, note);
   });
 }
 
 /**
- * Displays a form to create a new note (multiline content).
+ * Displays a form to create a new note, with arrow-key focus switching between buttons.
  */
 function createNoteUI(screen) {
   screen.children.forEach(child => child.detach());
@@ -165,53 +161,76 @@ function createNoteUI(screen) {
     parent: screen,
     top: 'center',
     left: 'center',
-    width: '80%',
-    height: '80%',
+    width: '70%',
+    height: '70%',
     keys: true,
     vi: true,
     mouse: true,
-    border: { type: 'line' },
+    border: { type: 'line', fg: 'white' },
+    style: { bg: 'black' },
     label: ' New Note '
+  });
+
+  // Instructions box (top-right)
+  blessed.box({
+    parent: form,
+    top: 0,
+    right: 1,
+    width: 'shrink',
+    height: 'shrink',
+    content: "Tab: switch fields\nEnter in Content: newline\nEsc/q: cancel",
+    style: { fg: 'gray' }
   });
 
   blessed.text({
     parent: form,
     top: 1,
     left: 2,
-    content: 'Title:'
+    content: 'Title:',
+    style: { fg: 'white' }
   });
 
-  const titleInput = blessed.textarea({
+  const titleInput = blessed.textbox({
     parent: form,
     name: 'title',
     top: 2,
     left: 2,
-    width: '90%',
+    width: '95%',
     height: 3,
     keys: true,
     vi: true,
+    mouse: true,
     inputOnFocus: true,
-    border: { type: 'line' }
+    border: { type: 'line', fg: 'white' }
   });
 
   blessed.text({
     parent: form,
     top: 6,
     left: 2,
-    content: 'Content:'
+    content: 'Content:',
+    style: { fg: 'white' }
   });
 
+  // Reduced height to prevent overlap with buttons
   const contentInput = blessed.textarea({
     parent: form,
     name: 'content',
     top: 7,
     left: 2,
-    width: '90%',
-    height: '60%',
+    width: '95%',
+    height: '40%',
     keys: true,
     vi: true,
+    mouse: true,
     inputOnFocus: true,
-    border: { type: 'line' }
+    border: { type: 'line', fg: 'white' },
+    scrollable: true,
+    alwaysScroll: true,
+    scrollbar: {
+      ch: ' ',
+      inverse: true
+    }
   });
 
   const submitButton = blessed.button({
@@ -220,36 +239,54 @@ function createNoteUI(screen) {
     keys: true,
     vi: true,
     shrink: true,
-    padding: {
-      left: 1,
-      right: 1
-    },
-    left: 'center',
+    padding: { left: 1, right: 1 },
     bottom: 2,
+    left: '35%',
     name: 'submit',
     content: 'Submit',
     style: {
+      fg: 'white',
       bg: 'blue',
-      focus: {
-        bg: 'green'
-      },
-      hover: {
-        bg: 'green'
-      }
+      focus: { bg: 'green' },
+      hover: { bg: 'green' }
     }
   });
 
-  submitButton.on('press', () => {
-    form.submit();
+  const cancelButton = blessed.button({
+    parent: form,
+    mouse: true,
+    keys: true,
+    vi: true,
+    shrink: true,
+    padding: { left: 1, right: 1 },
+    bottom: 2,
+    left: '50%',
+    name: 'cancel',
+    content: 'Cancel',
+    style: {
+      fg: 'white',
+      bg: 'red',
+      focus: { bg: 'yellow' },
+      hover: { bg: 'yellow' }
+    }
   });
+
+  // Allow left/right arrow to switch focus between Submit and Cancel
+  submitButton.key(['left', 'right'], () => {
+    cancelButton.focus();
+  });
+  cancelButton.key(['left', 'right'], () => {
+    submitButton.focus();
+  });
+
+  submitButton.on('press', () => form.submit());
+  cancelButton.on('press', () => fullScreenListUI(screen));
 
   form.on('submit', data => {
     const title = data.title?.trim();
     const content = data.content?.trim();
     if (!title) {
-      showMessage(screen, 'Title is required!', () => {
-        titleInput.focus();
-      });
+      showMessage(screen, 'Title is required!', () => titleInput.focus());
     } else {
       notes.createNote(title, content);
       showMessage(screen, 'Note created successfully!', () => {
@@ -258,7 +295,6 @@ function createNoteUI(screen) {
     }
   });
 
-  // Press Esc or q to go back
   screen.key(['escape', 'q'], () => {
     fullScreenListUI(screen);
   });
@@ -268,7 +304,7 @@ function createNoteUI(screen) {
 }
 
 /**
- * Displays a form to edit an existing note (multiline content).
+ * Similar form for editing an existing note, also with arrow-key focus switching.
  */
 function editNoteUI(screen, note) {
   screen.children.forEach(child => child.detach());
@@ -277,42 +313,56 @@ function editNoteUI(screen, note) {
     parent: screen,
     top: 'center',
     left: 'center',
-    width: '80%',
-    height: '80%',
+    width: '70%',
+    height: '70%',
     keys: true,
     vi: true,
     mouse: true,
-    border: { type: 'line' },
+    border: { type: 'line', fg: 'white' },
+    style: { bg: 'black' },
     label: ' Edit Note '
+  });
+
+  // Instructions box (top-right)
+  blessed.box({
+    parent: form,
+    top: 0,
+    right: 1,
+    width: 'shrink',
+    height: 'shrink',
+    content: "Tab: switch fields\nEnter in Content: newline\nEsc/q: cancel",
+    style: { fg: 'gray' }
   });
 
   blessed.text({
     parent: form,
     top: 1,
     left: 2,
-    content: 'Title:'
+    content: 'Title:',
+    style: { fg: 'white' }
   });
 
-  const titleInput = blessed.textarea({
+  const titleInput = blessed.textbox({
     parent: form,
     name: 'title',
     top: 2,
     left: 2,
-    width: '90%',
+    width: '95%',
     height: 3,
     keys: true,
     vi: true,
+    mouse: true,
     inputOnFocus: true,
-    border: { type: 'line' }
+    border: { type: 'line', fg: 'white' }
   });
-
   titleInput.setValue(note.title);
 
   blessed.text({
     parent: form,
     top: 6,
     left: 2,
-    content: 'Content:'
+    content: 'Content:',
+    style: { fg: 'white' }
   });
 
   const contentInput = blessed.textarea({
@@ -320,52 +370,76 @@ function editNoteUI(screen, note) {
     name: 'content',
     top: 7,
     left: 2,
-    width: '90%',
-    height: '60%',
+    width: '95%',
+    height: '40%',
     keys: true,
     vi: true,
+    mouse: true,
     inputOnFocus: true,
-    border: { type: 'line' }
+    border: { type: 'line', fg: 'white' },
+    scrollable: true,
+    alwaysScroll: true,
+    scrollbar: {
+      ch: ' ',
+      inverse: true
+    }
   });
-
   contentInput.setValue(note.content);
 
-  const submitButton = blessed.button({
+  const saveButton = blessed.button({
     parent: form,
     mouse: true,
     keys: true,
     vi: true,
     shrink: true,
-    padding: {
-      left: 1,
-      right: 1
-    },
-    left: 'center',
+    padding: { left: 1, right: 1 },
     bottom: 2,
-    name: 'submit',
+    left: '35%',
+    name: 'save',
     content: 'Save',
     style: {
+      fg: 'white',
       bg: 'blue',
-      focus: {
-        bg: 'green'
-      },
-      hover: {
-        bg: 'green'
-      }
+      focus: { bg: 'green' },
+      hover: { bg: 'green' }
     }
   });
 
-  submitButton.on('press', () => {
-    form.submit();
+  const cancelButton = blessed.button({
+    parent: form,
+    mouse: true,
+    keys: true,
+    vi: true,
+    shrink: true,
+    padding: { left: 1, right: 1 },
+    bottom: 2,
+    left: '50%',
+    name: 'cancel',
+    content: 'Cancel',
+    style: {
+      fg: 'white',
+      bg: 'red',
+      focus: { bg: 'yellow' },
+      hover: { bg: 'yellow' }
+    }
   });
+
+  // Arrow-key focus switching
+  saveButton.key(['left', 'right'], () => {
+    cancelButton.focus();
+  });
+  cancelButton.key(['left', 'right'], () => {
+    saveButton.focus();
+  });
+
+  saveButton.on('press', () => form.submit());
+  cancelButton.on('press', () => fullScreenListUI(screen));
 
   form.on('submit', data => {
     const updatedTitle = data.title?.trim();
     const updatedContent = data.content?.trim();
     if (!updatedTitle) {
-      showMessage(screen, 'Title is required!', () => {
-        titleInput.focus();
-      });
+      showMessage(screen, 'Title is required!', () => titleInput.focus());
     } else {
       notes.updateNote(note.id, { title: updatedTitle, content: updatedContent });
       showMessage(screen, 'Note updated successfully!', () => {
@@ -374,7 +448,6 @@ function editNoteUI(screen, note) {
     }
   });
 
-  // Press Esc or q to go back
   screen.key(['escape', 'q'], () => {
     fullScreenListUI(screen);
   });
@@ -384,7 +457,7 @@ function editNoteUI(screen, note) {
 }
 
 /**
- * Asks for confirmation before deleting a note.
+ * Prompt for deletion confirmation.
  */
 function confirmDeleteNote(screen, noteId) {
   const prompt = blessed.prompt({
@@ -398,6 +471,7 @@ function confirmDeleteNote(screen, noteId) {
     keys: true,
     vi: true
   });
+
   prompt.input('Type YES to delete the note:', '', (err, value) => {
     if (value === 'YES') {
       notes.deleteNote(noteId);
@@ -407,7 +481,7 @@ function confirmDeleteNote(screen, noteId) {
 }
 
 /**
- * Helper to show a short message box, then do a callback.
+ * Show a short message, then call a callback.
  */
 function showMessage(screen, text, callback) {
   const msg = blessed.message({
