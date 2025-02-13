@@ -1,7 +1,7 @@
 # Taccuino
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/JustSouichi/taccuino/refs/heads/main/assets/taccuino_screenshot.png" width="200" height="179" alt="">
+  <img src="https://raw.githubusercontent.com/JustSouichi/taccuino/refs/heads/main/assets/taccuino_screenshot.png" alt="">
   <br><strong>Command-line tool for monitoring financial data and market trends in real-time directly from your terminal.</strong>
   <br><a href="https://github.com/JustSouichi/finview">GitHub Repository</a>
 </p>

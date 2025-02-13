@@ -1,6 +1,6 @@
 {
   "name": "taccuino",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "description": "Taccuino - CLI Note Manager for fast terminal note management",
   "main": "index.js",
